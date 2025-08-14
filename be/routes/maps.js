@@ -2,30 +2,9 @@ const express = require('express');
 const router = express.Router();
 const Map = require('../models/Map');
 const Point = require('../models/Point');
+const Walk3D = require('../models/Walk3D');
 
-/**
- * @swagger
- * tags:
- * - name: Maps
- * description: API do zarządzania mapami
- */
-
-/**
- * @swagger
- * /api/maps:
- * get:
- * summary: Pobiera listę wszystkich map
- * tags: [Maps]
- * responses:
- * 200:
- * description: Lista map z populacją powiązanych punktów i spacerów 3D
- * content:
- * application/json:
- * schema:
- * type: array
- * items:
- * $ref: '#/components/schemas/Map'
- */
+// GET - Pobieranie wszystkich map
 router.get('/', async (req, res) => {
   try {
     const maps = await Map.find().populate('points').populate('walks3D');
@@ -35,29 +14,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/maps/{id}:
- * get:
- * summary: Pobiera jedną mapę po ID
- * tags: [Maps]
- * parameters:
- * - in: path
- * name: id
- * schema:
- * type: string
- * required: true
- * description: ID mapy
- * responses:
- * 200:
- * description: Dane mapy
- * content:
- * application/json:
- * schema:
- * $ref: '#/components/schemas/Map'
- * 404:
- * description: Nie znaleziono mapy
- */
+// GET - Pobieranie jednej mapy po ID
 router.get('/:id', async (req, res) => {
   try {
     const map = await Map.findById(req.params.id).populate('points').populate('walks3D');
@@ -70,24 +27,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/maps:
- * post:
- * summary: Tworzy nową mapę
- * tags: [Maps]
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * $ref: '#/components/schemas/Map'
- * responses:
- * 201:
- * description: Pomyślnie utworzono mapę
- * 400:
- * description: Błąd w zapytaniu
- */
+// POST - Tworzenie nowej mapy
 router.post('/', async (req, res) => {
   const map = new Map({
     name: req.body.name,
@@ -103,73 +43,41 @@ router.post('/', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/maps/{id}:
- * put:
- * summary: Aktualizuje istniejącą mapę
- * tags: [Maps]
- * parameters:
- * - in: path
- * name: id
- * schema:
- * type: string
- * required: true
- * description: ID mapy do aktualizacji
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * $ref: '#/components/schemas/Map'
- * responses:
- * 200:
- * description: Zaktualizowana mapa
- * 404:
- * description: Nie znaleziono mapy
- */
+// PUT - Aktualizacja mapy po ID
 router.put('/:id', async (req, res) => {
   try {
-    const updatedMap = await Map.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updatedMap = await Map.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
     if (!updatedMap) {
       return res.status(404).json({ message: 'Nie znaleziono mapy o podanym ID' });
     }
+
     res.json(updatedMap);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-/**
- * @swagger
- * /api/maps/{id}:
- * delete:
- * summary: Usuwa mapę i wszystkie powiązane z nią punkty
- * tags: [Maps]
- * parameters:
- * - in: path
- * name: id
- * schema:
- * type: string
- * required: true
- * description: ID mapy do usunięcia
- * responses:
- * 200:
- * description: Potwierdzenie usunięcia
- * 404:
- * description: Nie znaleziono mapy
- */
+// DELETE - Usuwanie mapy po ID
 router.delete('/:id', async (req, res) => {
   try {
     const map = await Map.findById(req.params.id);
     if (!map) {
       return res.status(404).json({ message: 'Nie znaleziono mapy' });
     }
+
+    // Usuwanie wszystkich powiązanych dokumentów dla zachowania spójności danych
+    await Point.deleteMany({ _id: { $in: map.points } });
+    await Walk3D.deleteMany({ _id: { $in: map.walks3D } });
+
+    // Usunięcie samej mapy
+    await map.deleteOne();
     
-    await Point.deleteMany({ map: map._id });
-    
-    await map.remove();
-    res.json({ message: 'Pomyślnie usunięto mapę i wszystkie jej punkty' });
+    res.json({ message: 'Pomyślnie usunięto mapę oraz wszystkie jej punkty i spacery 3D' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

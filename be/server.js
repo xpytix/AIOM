@@ -1,8 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const swaggerUi = require('swagger-ui-express'); // Import Swagger UI
-const swaggerSpecs = require('./swaggerConfig'); // Import naszej konfiguracji Swaggera
 
 const app = express();
 app.use(cors());
@@ -15,11 +13,6 @@ db.on('error', console.error.bind(console, 'Błąd połączenia z MongoDB:'));
 db.once('open', () => {
   console.log('✅ Pomyślnie połączono z bazą danych MongoDB!');
 });
-// ------------------------------------
-
-// --- SERWOWANIE DOKUMENTACJI SWAGGER ---
-// Ten endpoint będzie hostował interaktywną dokumentację API
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 // ------------------------------------
 
 // --- GŁÓWNA TRASA API ---
