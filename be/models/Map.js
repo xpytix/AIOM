@@ -2,38 +2,43 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const mapSchema = new Schema({
-  // Nazwa mapy, np. "Main Warehouse"
   name: {
     type: String,
     required: [true, 'Nazwa mapy jest wymagana.'],
     trim: true
   },
-  // Opcjonalny opis mapy
   description: {
     type: String,
     required: false,
     trim: true
   },
-  // Link do obrazu tła mapy
+  // NOWE POLE: Typ mapy ('google' lub 'image')
+  mapType: {
+    type: String,
+    enum: ['google', 'image'],
+    required: true,
+    default: 'google'
+  },
+  // Ten URL będzie używany tylko, gdy mapType to 'image'
   imageUrl: {
     type: String,
-    required: false
+    required: function() { return this.mapType === 'image'; } // Wymagany tylko dla typu 'image'
   },
-  
-  // --- RELACJE ---
-  // Tablica przechowująca referencje (ID) do dokumentów Punktów
+  // NOWY OBIEKT: Domyślny widok mapy przy załadowaniu
+  initialView: {
+    lat: { type: Number, required: true, default: 52.237 }, // Domyślnie Warszawa
+    lng: { type: Number, required: true, default: 21.017 },
+    zoom: { type: Number, required: true, default: 13 }
+  },
   points: [{
     type: Schema.Types.ObjectId,
-    ref: 'Point' // Mówi Mongoose, że te ID odnoszą się do modelu 'Point'
+    ref: 'Point'
   }],
-  
-  // Tablica przechowująca referencje (ID) do dokumentów Spacerów 3D
   walks3D: [{
     type: Schema.Types.ObjectId,
-    ref: 'Walk3D' // Mówi Mongoose, że te ID odnoszą się do modelu 'Walk3D'
+    ref: 'Walk3D'
   }]
 }, {
-  // Opcja dodająca automatycznie pola `createdAt` i `updatedAt`
   timestamps: true
 });
 

@@ -1,0 +1,16 @@
+/* Import nowoczesnej czcionki Inter z Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Ta linia jest kluczowa dla wtyczki Vite */
+@import 'tailwindcss';
+
+/* Definicja globalnych stylów dla całej aplikacji w warstwie 'base' */
+@layer base {
+  html {
+    font-family: theme('fontFamily.sans');
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+}

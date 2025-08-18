@@ -1,13 +1,17 @@
-<script setup lang="ts"></script>
-
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+  <RouterView />
 </template>
 
-<style scoped>
-  
+<script setup lang="ts">
+import { RouterView } from 'vue-router';
+</script>
+
+<style>
+/* Tutaj możesz dodać globalne style, które będą działać w całej aplikacji */
+/* Na przykład resetowanie marginesów, style dla body itp. */
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background-color: #f0f2f5;
+}
 </style>

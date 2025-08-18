@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const User = require('./models/User');
+const Map = require('./models/Map');
 
 dotenv.config();
 
@@ -21,24 +22,53 @@ const connectDB = async () => {
 
 const importData = async () => {
   try {
-    // 1. Połącz z bazą danych
     await connectDB();
     
-    // 2. Wyczyść kolekcję użytkowników (opcjonalne, ale dobre przy restarcie)
+    // Czyścimy kolekcje przed importem
     await User.deleteMany();
+    await Map.deleteMany();
 
-    // 3. Zdefiniuj dane dla pierwszego admina
+    // --- Tworzenie Użytkownika Admina ---
     const adminUser = {
       name: 'Admin',
-      email: 'admin@aiom.com', // Zmień na prawdziwy email
-      password: 'qwerty', // Użyj silnego, unikalnego hasła
+      email: 'admin@aiom.com',
+      password: 'qwerty', // Pamiętaj, aby zmienić to na silne hasło!
       role: 'admin',
     };
-
-    // 4. Stwórz użytkownika w bazie (hasło zostanie automatycznie zahashowane przez hook w modelu)
     await User.create(adminUser);
+    console.log('✅ Użytkownik admin został utworzony.');
 
-    console.log('✅ Dane zaimportowane! Użytkownik admin został utworzony.');
+    // --- Tworzenie Map ---
+    const mapsToCreate = [
+      // Mapa 1: Google Maps
+      {
+        name: "Saint Gobain - Stawiany (Google)",
+        mapType: "google",
+        initialView: {
+          lat: 50.546009,
+          lng: 20.613573,
+          zoom: 15
+        }
+      },
+      // Mapa 2: Twoja mapa z drona
+      {
+        name: "Twoja Mapa z Drona",
+        mapType: "image",
+        // Używamy bezpośredniego linku do obrazu .png
+        imageUrl: "https://i.imgur.com/Rr9jBsZ.jpeg",
+        initialView: {
+          lat: 0,
+          lng: 0,
+          zoom: 1
+        }
+      }
+    ];
+
+    // Używamy insertMany do dodania wszystkich map naraz
+    await Map.insertMany(mapsToCreate);
+    console.log('✅ Dwie domyślne mapy zostały utworzone.');
+
+    console.log('\n--- Import danych zakończony pomyślnie! ---');
     process.exit();
   } catch (error) {
     console.error(`BŁĄD: ${error}`);
@@ -46,5 +76,5 @@ const importData = async () => {
   }
 };
 
-// Logika do uruchamiania z linii komend
+// Uruchomienie skryptu
 importData();
