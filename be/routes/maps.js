@@ -3,9 +3,10 @@ const router = express.Router();
 const Map = require('../models/Map');
 const Point = require('../models/Point');
 const Walk3D = require('../models/Walk3D');
+const { protect, authorize } = require('../middleware/authMiddleware'); // IMPORTUJEMY STRAŻNIKÓW
 
-// GET - Pobieranie wszystkich map
-router.get('/', async (req, res) => {
+// GET - Pobieranie wszystkich map (dla wszystkich zalogowanych)
+router.get('/', protect, async (req, res) => {
   try {
     const maps = await Map.find().populate('points').populate('walks3D');
     res.json(maps);
@@ -14,8 +15,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET - Pobieranie jednej mapy po ID
-router.get('/:id', async (req, res) => {
+// GET - Pobieranie jednej mapy po ID (dla wszystkich zalogowanych)
+router.get('/:id', protect, async (req, res) => {
   try {
     const map = await Map.findById(req.params.id).populate('points').populate('walks3D');
     if (!map) {
@@ -27,8 +28,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST - Tworzenie nowej mapy
-router.post('/', async (req, res) => {
+// POST - Tworzenie nowej mapy (dla admina i managera)
+router.post('/', [protect, authorize('admin', 'manager')], async (req, res) => {
   const map = new Map({
     name: req.body.name,
     description: req.body.description,
@@ -43,38 +44,33 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT - Aktualizacja mapy po ID
-router.put('/:id', async (req, res) => {
+// PUT - Aktualizacja mapy po ID (dla admina i managera)
+router.put('/:id', [protect, authorize('admin', 'manager')], async (req, res) => {
   try {
     const updatedMap = await Map.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
     );
-
     if (!updatedMap) {
       return res.status(404).json({ message: 'Nie znaleziono mapy o podanym ID' });
     }
-
     res.json(updatedMap);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// DELETE - Usuwanie mapy po ID
-router.delete('/:id', async (req, res) => {
+// DELETE - Usuwanie mapy po ID (tylko dla admina)
+router.delete('/:id', [protect, authorize('admin')], async (req, res) => {
   try {
     const map = await Map.findById(req.params.id);
     if (!map) {
       return res.status(404).json({ message: 'Nie znaleziono mapy' });
     }
 
-    // Usuwanie wszystkich powiązanych dokumentów dla zachowania spójności danych
     await Point.deleteMany({ _id: { $in: map.points } });
     await Walk3D.deleteMany({ _id: { $in: map.walks3D } });
-
-    // Usunięcie samej mapy
     await map.deleteOne();
     
     res.json({ message: 'Pomyślnie usunięto mapę oraz wszystkie jej punkty i spacery 3D' });

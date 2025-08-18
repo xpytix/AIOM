@@ -3,9 +3,10 @@ const router = express.Router();
 const Walk3D = require('../models/Walk3D');
 const Map = require('../models/Map');
 const Point = require('../models/Point');
+const { protect, authorize } = require('../middleware/authMiddleware'); // IMPORT STRAŻNIKÓW
 
-
-router.get('/', async (req, res) => {
+// GET - Pobieranie spacerów 3D (dla wszystkich zalogowanych)
+router.get('/', protect, async (req, res) => {
   try {
     const filter = req.query.mapId ? { map: req.query.mapId } : {};
     const walks = await Walk3D.find(filter).populate('points');
@@ -15,7 +16,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
+// GET - Pobieranie jednego spaceru 3D po ID (dla wszystkich zalogowanych)
+router.get('/:id', protect, async (req, res) => {
   try {
     const walk = await Walk3D.findById(req.params.id).populate('points');
     if (!walk) {
@@ -27,7 +29,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+// POST - Tworzenie nowego spaceru 3D (dla admina i managera)
+router.post('/', [protect, authorize('admin', 'manager')], async (req, res) => {
   const walk = new Walk3D({
     name: req.body.name,
     description: req.body.description,
@@ -44,7 +47,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+// PUT - Aktualizacja spaceru 3D po ID (dla admina i managera)
+router.put('/:id', [protect, authorize('admin', 'manager')], async (req, res) => {
     try {
         const updatedWalk = await Walk3D.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!updatedWalk) return res.status(404).json({ message: 'Nie znaleziono spaceru 3D' });
@@ -54,14 +58,17 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-router.delete('/:id', async (req, res) => {
+// DELETE - Usuwanie spaceru 3D po ID (dla admina i managera)
+router.delete('/:id', [protect, authorize('admin', 'manager')], async (req, res) => {
   try {
     const walk = await Walk3D.findById(req.params.id);
     if (!walk) return res.status(404).json({ message: 'Nie znaleziono spaceru 3D' });
     
     await Map.findByIdAndUpdate(walk.map, { $pull: { walks3D: walk._id } });
     await Point.updateMany({ _id: { $in: walk.points } }, { $set: { walk3D: null } });
-    await walk.remove();
+    
+    // POPRAWKA: Użycie nowoczesnej i poprawnej metody .deleteOne()
+    await walk.deleteOne();
 
     res.json({ message: 'Pomyślnie usunięto spacer 3D i zaktualizowano relacje' });
   } catch (err) {

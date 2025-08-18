@@ -1,19 +1,19 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const pointTypeSchema = new Schema({
-  // Nazwa typu, np. "Gaśnica", "Apteczka", "Hydrant"
+const pointTypeSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'Nazwa typu jest wymagana.'],
-    unique: true, // Zapewnia, że nie będzie dwóch typów o tej samej nazwie
-    trim: true
+    required: true,
+    unique: true
   },
-  // Nazwa lub URL ikony do wyświetlenia na mapie
   icon: {
-    type: String,
-    required: false, // Ikona jest opcjonalna
-    trim: true
+    type: String
+  },
+  // NOWE POLE: Interwał inspekcji w dniach
+  inspectionIntervalInDays: {
+    type: Number,
+    required: [true, 'Interwał inspekcji jest wymagany.'],
+    default: 365 // Domyślnie ustawiamy na rok
   }
 });
 

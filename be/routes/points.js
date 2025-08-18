@@ -2,20 +2,36 @@ const express = require('express');
 const router = express.Router();
 const Point = require('../models/Point');
 const Map = require('../models/Map');
+const { protect, authorize } = require('../middleware/authMiddleware'); // IMPORT STRAŻNIKÓW
 
-
-router.get('/', async (req, res) => {
+// GET - Pobieranie wszystkich punktów (dla wszystkich zalogowanych)
+// GET - Pobieranie wszystkich punktów
+router.get('/', protect, async (req, res) => {
   try {
     const filter = req.query.mapId ? { map: req.query.mapId } : {};
-    const points = await Point.find(filter).populate('pointType', 'name icon');
+    let points = await Point.find(filter).populate('pointType', 'name icon');
+    
+    // Konwertuj dokumenty Mongoose na zwykłe obiekty, aby można je było modyfikować
+    points = points.map(p => p.toObject());
+
+    const today = new Date();
+
+    // Sprawdź każdy punkt i dynamicznie dodaj/zmień status
+    for (const point of points) {
+      if (point.nextInspectionDate && new Date(point.nextInspectionDate) < today) {
+        // Jeśli punkt jest przeterminowany, nadaj mu status "Po terminie"
+        point.status = 'Po terminie';
+      }
+    }
+
     res.json(points);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-
-router.get('/:id', async (req, res) => {
+// GET - Pobieranie jednego punktu po ID (dla wszystkich zalogowanych)
+router.get('/:id', protect, async (req, res) => {
   try {
     const point = await Point.findById(req.params.id).populate('pointType').populate('map');
     if (!point) {
@@ -27,8 +43,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-
-router.post('/', async (req, res) => {
+// POST - Tworzenie nowego punktu (dla admina i managera)
+router.post('/', [protect, authorize('admin', 'manager')], async (req, res) => {
   const point = new Point({
     name: req.body.name,
     description: req.body.description,
@@ -51,8 +67,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-
-router.put('/:id', async (req, res) => {
+// PUT - Aktualizacja punktu po ID (dla wszystkich zalogowanych)
+router.put('/:id', protect, async (req, res) => {
     try {
         const updatedPoint = await Point.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!updatedPoint) return res.status(404).json({ message: 'Nie znaleziono punktu' });
@@ -62,15 +78,13 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// DELETE - Usuwanie punktu po ID
-router.delete('/:id', async (req, res) => {
+// DELETE - Usuwanie punktu po ID (dla admina i managera)
+router.delete('/:id', [protect, authorize('admin', 'manager')], async (req, res) => {
   try {
     const point = await Point.findById(req.params.id);
     if (!point) return res.status(404).json({ message: 'Nie znaleziono punktu' });
     
     const mapId = point.map;
-
-    // POPRAWKA: Użyj .deleteOne() zamiast .remove() lub .delete()
     await point.deleteOne();
     
     await Map.findByIdAndUpdate(

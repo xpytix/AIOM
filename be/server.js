@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -32,7 +34,15 @@ app.use('/api/points', pointsRouter);
 
 const walks3DRouter = require('./routes/walks3d');
 app.use('/api/walks3d', walks3DRouter);
-// -----------------------------
+
+const usersRouter = require('./routes/users');
+app.use('/api/users', usersRouter);
+
+const authRouter = require('./routes/auth');
+app.use('/api/auth', authRouter); 
+
+const inspectionsRouter = require('./routes/inspection');
+app.use('/api/inspections', inspectionsRouter);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
