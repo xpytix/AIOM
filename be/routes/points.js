@@ -9,7 +9,8 @@ const { protect, authorize } = require('../middleware/authMiddleware'); // IMPOR
 router.get('/', protect, async (req, res) => {
   try {
     const filter = req.query.mapId ? { map: req.query.mapId } : {};
-    let points = await Point.find(filter).populate('pointType', 'name icon');
+    let points = await Point.find(filter).populate('pointType', 'name icon color')
+
     
     // Konwertuj dokumenty Mongoose na zwykłe obiekty, aby można je było modyfikować
     points = points.map(p => p.toObject());

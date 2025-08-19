@@ -9,6 +9,9 @@ const pointTypeSchema = new mongoose.Schema({
   icon: {
     type: String
   },
+    color: {
+    type: String
+  },
   // NOWE POLE: Interwał inspekcji w dniach
   inspectionIntervalInDays: {
     type: Number,

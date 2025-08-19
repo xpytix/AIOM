@@ -1,5 +1,9 @@
 import { defineStore } from 'pinia'
-import { pointTypesService, type PointType } from '@/services/pointTypesService'
+import {
+  pointTypesService,
+  type NewPointTypeData,
+  type PointType,
+} from '@/services/pointTypesService'
 interface PointTypesState {
   pointTypes: PointType[]
   isLoading: boolean
@@ -12,8 +16,6 @@ export const usePointTypesStore = defineStore('pointTypes', {
   }),
   actions: {
     async fetchPointTypes() {
-      if (this.pointTypes.length > 0) return // Nie pobieraj, jeśli już mamy dane
-
       this.isLoading = true
       try {
         this.pointTypes = await pointTypesService.getPointTypes()
@@ -21,6 +23,16 @@ export const usePointTypesStore = defineStore('pointTypes', {
         console.error('Błąd podczas pobierania typów punktów:', error)
       } finally {
         this.isLoading = false
+      }
+    },
+    // NOWA AKCJA
+    async addPointType(data: NewPointTypeData) {
+      try {
+        const newPointType = await pointTypesService.createPointType(data)
+        this.pointTypes.push(newPointType)
+      } catch (error) {
+        console.error('Błąd podczas dodawania typu punktu:', error)
+        throw error
       }
     },
   },
