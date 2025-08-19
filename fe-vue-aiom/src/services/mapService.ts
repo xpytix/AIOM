@@ -2,6 +2,8 @@ import apiClient from './apiClient';
 
 // Definicja typów, aby TypeScript nam pomagał
 export interface Map {
+mapType: string;
+initialView: any;
   _id: string;
   name: string;
   description?: string;

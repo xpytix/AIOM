@@ -38,3 +38,5 @@ export const useMapsStore = defineStore('maps', {
     }
   }
 });
+
+export { Map };
