@@ -1,11 +1,11 @@
-import { defineStore } from 'pinia';
-import { mapService, type Map } from '@/services/mapService';
+import { defineStore } from 'pinia'
+import { mapService, type Map } from '@/services/mapService'
 
 interface MapsState {
-  maps: Map[];
-  currentMap: Map | null;
-  isLoading: boolean;
-  error: string | null;
+  maps: Map[]
+  currentMap: Map | null
+  isLoading: boolean
+  error: string | null
 }
 
 export const useMapsStore = defineStore('maps', {
@@ -17,26 +17,26 @@ export const useMapsStore = defineStore('maps', {
   }),
   actions: {
     async fetchMaps() {
-      this.isLoading = true;
-      this.error = null;
+      this.isLoading = true
+      this.error = null
       try {
-        const maps = await mapService.getMaps();
-        this.maps = maps;
+        const maps = await mapService.getMaps()
+        this.maps = maps
         // Domyślnie ustawiamy pierwszą mapę z listy jako aktywną
         if (maps.length > 0) {
-          this.currentMap = maps[0];
+          this.currentMap = maps[0]
         }
       } catch (err) {
-        this.error = 'Nie udało się pobrać map.';
-        console.error(err);
+        this.error = 'Nie udało się pobrać map.'
+        console.error(err)
       } finally {
-        this.isLoading = false;
+        this.isLoading = false
       }
     },
     setCurrentMap(map: Map) {
-      this.currentMap = map;
-    }
-  }
-});
+      this.currentMap = map
+    },
+  },
+})
 
-export { Map };
+export type { Map }

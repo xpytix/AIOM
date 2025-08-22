@@ -1,20 +1,23 @@
 <template>
     <div class="relative h-screen w-screen">
-
+        <!-- Komunikat informujący o trybie dodawania punktu -->
         <div v-if="isAddingPoint"
             class="pointer-events-none absolute top-4 left-1/2 z-[1010] -translate-x-1/2 transform rounded-lg bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg ring-1 ring-black/5 backdrop-blur-sm">
             Tryb Dodawania Punktu: wskaż punkt na mapie
         </div>
 
+        <!-- Kontener na mapę Leaflet -->
         <div id="map-container" class="absolute top-0 left-0 z-0 h-full w-full"></div>
 
-        <div v-if="isAddingPoint" class="adding-point-overlay absolute inset-0 z-[1000] bg-slate-900/20"></div>
+        <!-- Nakładka wizualna na czas dodawania punktu -->
+        <div v-if="isAddingPoint" class="adding-point-overlay absolute ins`et-0 z-[1000] bg-slate-900/20"></div>
 
+        <!-- Pływający przycisk akcji (FAB) -->
+        <FloatingActionButton v-if="!isAddingPoint" class="absolute bottom-24 right-4 z-[1000]" @add="handleAddNew"
+            @edit="handleEdit" @camera="handleCamera" @addType="handleAddType" />
 
-        <FloatingActionButton class="absolute bottom-24 right-4 z-[1000]" @add="handleAddNew" @edit="handleEdit"
-            @camera="handleCamera" @addType="handleAddType" />
-
-        <div class="absolute bottom-0 left-0 right-0 z-[1000] p-4">
+        <!-- Dolny pasek z wyborem mapy -->
+        <div class="absolute bottom-0 left-0 right-0 z-[1000] p-4" v-if="!isAddingPoint">
             <div class="mx-auto flex max-w-md items-center justify-between gap-2 rounded-lg bg-white p-2 shadow-xl">
                 <button class="flex-shrink-0 rounded-md p-2 hover:bg-slate-100">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none"
@@ -41,6 +44,7 @@
             </div>
         </div>
 
+        <!-- Dialog wyboru mapy -->
         <BaseDialog :is-open="isMapDialogOpen" title="Wybierz mapę do wyświetlenia" @close="closeMapDialog">
             <ul v-if="!mapsStore.isLoading">
                 <li v-for="map in mapsStore.maps" :key="map._id" @click="selectMap(map)"
@@ -51,37 +55,48 @@
             <div v-else>Ładowanie listy map...</div>
             <template #footer>
                 <button @click="closeMapDialog"
-                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">Anuluj</button>
+                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
+                    Anuluj
+                </button>
             </template>
         </BaseDialog>
 
+        <!-- Dialog dodawania nowego punktu -->
         <BaseDialog :is-open="isAddPointDialogOpen" title="Dodaj nowy punkt kontrolny" @close="closeAddPointDialog">
             <AddPointForm v-if="newPointCoords" ref="addPointFormRef" :coordinates="newPointCoords"
                 :map-id="mapsStore.currentMap!._id" @save="handleSavePoint" />
 
             <template #footer>
                 <button @click="closeAddPointDialog"
-                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">Anuluj</button>
+                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
+                    Anuluj
+                </button>
                 <button @click="submitAddPointForm"
-                    class="rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">Zapisz
-                    punkt</button>
+                    class="rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">
+                    Zapisz punkt
+                </button>
             </template>
         </BaseDialog>
 
+        <!-- Dialog dodawania nowego typu punktu -->
         <BaseDialog :is-open="isAddPointTypeDialogOpen" title="Dodaj nowy typ punktu" @close="closeAddPointTypeDialog">
             <AddPointTypeForm ref="addPointTypeFormRef" @save="handleSavePointType" />
             <template #footer>
                 <button @click="closeAddPointTypeDialog"
-                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">Anuluj</button>
+                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
+                    Anuluj
+                </button>
                 <button @click="submitAddPointTypeForm"
-                    class="rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">Zapisz typ</button>
+                    class="rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">
+                    Zapisz typ
+                </button>
             </template>
         </BaseDialog>
     </div>
 </template>
 
 <script setup lang="ts">// --- IMPORTY ---
-import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
+// Importy niezbędnych bibliotek, komponentów i typów.
 import { useMapsStore, type Map } from '@/stores/maps';
 import { usePointsStore } from '@/stores/points';
 import { usePointTypesStore } from '@/stores/pointTypes';
@@ -92,17 +107,21 @@ import FloatingActionButton from '@/components/map/FloatingActionButton.vue';
 import AddPointForm from '@/components/map/AddPointForm.vue';
 import AddPointTypeForm from '@/components/map/AddPointTypeForm.vue'; // NOWY IMPORT
 import type { NewPointTypeData } from '@/services/pointTypesService';
+import { onMounted, onBeforeUnmount, ref, watch, shallowRef, computed } from 'vue';
+import { createLogger } from 'vite';
+import { log } from 'console';
 
-
-// --- STORES ---
+// --- STORE'Y ---
+// Inicjalizacja store'ów Pinia do zarządzania stanem aplikacji.
 const mapsStore = useMapsStore();
 const pointsStore = usePointsStore();
 const pointTypesStore = usePointTypesStore();
 
 // --- ZMIENNE REAKTYWNE (STAN KOMPONENTU) ---
-const mapInstance = ref<L.Map | null>(null);
-const currentLayer = ref<L.Layer | null>(null);
-const pointMarkersLayer = ref<L.LayerGroup | null>(null);
+// Przechowują instancje mapy, warstw oraz stany dialogów.
+const mapInstance = shallowRef<L.Map | null>(null);
+const currentLayer = shallowRef<L.Layer | null>(null);
+const pointMarkersLayer = shallowRef<L.LayerGroup | null>(null);
 const isMapDialogOpen = ref(false);
 
 // ZMIENNE DLA DODAWANIA PUNKTU
@@ -115,20 +134,23 @@ const addPointFormRef = ref<InstanceType<typeof AddPointForm> | null>(null);
 const isAddPointTypeDialogOpen = ref(false);
 const addPointTypeFormRef = ref<InstanceType<typeof AddPointTypeForm> | null>(null);
 
-
 // --- OBSŁUGA ZDARZEŃ UI ---
-const openMapDialog = () => { isMapDialogOpen.value = true; };
+// Funkcje odpowiedzialne za interakcje użytkownika z interfejsem.
+const openMapDialog = () => {
+    isMapDialogOpen.value = true; if (mapInstance.value) {
+        mapInstance.value.closePopup(); // Zamyka jakikolwiek otwarty dymek przed przerysowaniem
+    }
+};
 const closeMapDialog = () => { isMapDialogOpen.value = false; };
 const selectMap = (map: Map) => {
     mapsStore.setCurrentMap(map);
     closeMapDialog();
 };
 
-const handleEdit = () => { console.log('Akcja: Edytuj'); };
-const handleCamera = () => { console.log('Akcja: Aparat'); };
+
 
 // --- LOGIKA DODAWANIA NOWEGO PUNKTU ---
-
+// Funkcje związane z procesem dodawania nowego punktu na mapie.
 /** Rozpoczyna proces dodawania nowego punktu. */
 const handleAddNew = () => {
     if (!mapsStore.currentMap) {
@@ -167,6 +189,9 @@ const submitAddPointForm = () => {
 const handleSavePoint = async (data: NewPointData) => {
     try {
         await pointsStore.addPoint(data);
+        if (mapsStore.currentMap) {
+            await pointsStore.fetchPointsForMap(mapsStore.currentMap._id);
+        }
         closeAddPointDialog();
     } catch (error) {
         console.error('Błąd zapisu punktu:', error);
@@ -175,12 +200,15 @@ const handleSavePoint = async (data: NewPointData) => {
 };
 
 // --- NOWA LOGIKA: DODAWANIE TYPU PUNKTU ---
+// Funkcje do zarządzania typami punktów.
 const handleAddType = () => { isAddPointTypeDialogOpen.value = true; };
 const closeAddPointTypeDialog = () => { isAddPointTypeDialogOpen.value = false; };
 const submitAddPointTypeForm = () => { addPointTypeFormRef.value?.submit(); };
 const handleSavePointType = async (data: NewPointTypeData) => {
     try {
         await pointTypesStore.addPointType(data);
+        // Odśwież listę typów, aby nowy typ był dostępny w formularzach
+        await pointTypesStore.fetchPointTypes();
         closeAddPointTypeDialog();
         // Można dodać toast 'Pomyślnie dodano nowy typ!'
     } catch (error) {
@@ -189,12 +217,20 @@ const handleSavePointType = async (data: NewPointTypeData) => {
     }
 };
 
+const handleEdit = () => { console.log('Akcja: Edytuj'); };
+const handleCamera = () => { console.log('Akcja: Aparat'); };
+
+
 // --- GŁÓWNA LOGIKA MAPY ---
+// Funkcje odpowiedzialne za inicjalizację i zarządzanie warstwami mapy.
 const setupMapLayer = (mapData: Map) => {
     if (!mapInstance.value) return;
     const map = mapInstance.value;
 
-    if (currentLayer.value) map.removeLayer(currentLayer.value);
+    if (currentLayer.value)
+        map.removeLayer(currentLayer.value);
+
+
     map.setMaxBounds(null);
     map.setMinZoom(0);
 
@@ -228,8 +264,10 @@ const setupMapLayer = (mapData: Map) => {
     }
 };
 
-// --- CYKL ŻYCIA KOMPONENTU ---
+// --- HOOKI CYKLU ŻYCIA KOMPONENTU ---
+// `onMounted` jest wywoływany po zamontowaniu komponentu w DOM.
 onMounted(() => {
+
     mapInstance.value = L.map('map-container', { maxBoundsViscosity: 0.9, zoomControl: false });
     L.control.zoom({ position: 'topleft' }).addTo(mapInstance.value);
     pointMarkersLayer.value = L.layerGroup().addTo(mapInstance.value);
@@ -244,6 +282,7 @@ onMounted(() => {
     mapsStore.fetchMaps();
 });
 
+// `onBeforeUnmount` jest wywoływany tuż przed odmontowaniem komponentu.
 onBeforeUnmount(() => {
     if (mapInstance.value) {
         mapInstance.value.off('click', onMapClick);
@@ -252,15 +291,20 @@ onBeforeUnmount(() => {
 });
 
 // --- OBSERWATORY (WATCHERS) ---
+// Obserwują zmiany w stanie i reagują na nie, np. aktualizując mapę.
 watch(() => mapsStore.currentMap, (newMap) => {
     if (newMap && mapInstance.value) {
+        mapInstance.value.closePopup(); // Zamyka jakikolwiek otwarty dymek przed przerysowaniem
+
         setupMapLayer(newMap);
+        console.log('newMap', newMap);
+
         pointsStore.fetchPointsForMap(newMap._id);
+
     }
 });
 
-// W pliku src/views/HomeView.vue
-
+// Obserwator zmian w punktach na mapie.
 watch(() => pointsStore.points, (newPoints) => {
     if (!pointMarkersLayer.value || !mapInstance.value) return;
 
