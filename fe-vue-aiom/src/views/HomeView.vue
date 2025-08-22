@@ -92,6 +92,10 @@
                 </button>
             </template>
         </BaseDialog>
+
+        <PointDetailsDialog :isOpen="isDetailsDialogOpen" :point="selectedPointForDetails" @close="closeDetailsDialog"
+            @save="handleSavePointDetails" @delete="handleDeletePoint" />
+
     </div>
 </template>
 
@@ -100,16 +104,15 @@
 import { useMapsStore, type Map } from '@/stores/maps';
 import { usePointsStore } from '@/stores/points';
 import { usePointTypesStore } from '@/stores/pointTypes';
-import type { NewPointData } from '@/services/pointService';
+import type { NewPointData, Point } from '@/services/pointService';
 import L from 'leaflet';
 import BaseDialog from '@/components/map/BaseDialog.vue';
 import FloatingActionButton from '@/components/map/FloatingActionButton.vue';
 import AddPointForm from '@/components/map/AddPointForm.vue';
 import AddPointTypeForm from '@/components/map/AddPointTypeForm.vue'; // NOWY IMPORT
 import type { NewPointTypeData } from '@/services/pointTypesService';
-import { onMounted, onBeforeUnmount, ref, watch, shallowRef, computed } from 'vue';
-import { createLogger } from 'vite';
-import { log } from 'console';
+import { onMounted, onBeforeUnmount, ref, watch, shallowRef, computed, nextTick } from 'vue';
+import PointDetailsDialog from '@/components/map/PointDetailsDialog.vue';
 
 // --- STORE'Y ---
 // Inicjalizacja store'ów Pinia do zarządzania stanem aplikacji.
@@ -147,6 +150,54 @@ const selectMap = (map: Map) => {
     closeMapDialog();
 };
 
+// --- NOWA LOGIKA: SZCZEGÓŁY PUNKTU ---
+const isDetailsDialogOpen = ref(false);
+const selectedPointForDetails = ref<Point | null>(null);
+
+const openDetailsDialog = (point: Point) => {
+    selectedPointForDetails.value = point;
+    isDetailsDialogOpen.value = true;
+};
+const closeDetailsDialog = () => {
+    isDetailsDialogOpen.value = false;
+    selectedPointForDetails.value = null;
+};
+
+const handleSavePointDetails = async (data: Partial<Point>) => {
+    if (!selectedPointForDetails.value) return;
+
+    try {
+        await pointsStore.updatePoint(selectedPointForDetails.value._id, data);
+        // Odśwież dane
+        if (mapsStore.currentMap) {
+            await pointsStore.fetchPointsForMap(mapsStore.currentMap._id);
+        }
+        // Zaktualizuj też `selectedPointForDetails`, aby pokazać nowe dane bez zamykania okna
+        const updatedPoint = pointsStore.points.find(p => p._id === selectedPointForDetails.value!._id);
+        if (updatedPoint) {
+            selectedPointForDetails.value = updatedPoint;
+        } else {
+            closeDetailsDialog(); // Jeśli punkt zniknął, zamknij okno
+        }
+
+    } catch (error) {
+        console.error('Błąd aktualizacji punktu:', error);
+        alert('Nie udało się zaktualizować punktu. Spróbuj ponownie.');
+    }
+};
+
+const handleDeletePoint = async (id: string) => {
+    try {
+        await pointsStore.deletePoint(id);
+        if (mapsStore.currentMap) {
+            await pointsStore.fetchPointsForMap(mapsStore.currentMap._id);
+        }
+        closeDetailsDialog();
+    } catch (error) {
+        console.error('Błąd usuwania punktu:', error);
+        alert('Nie udało się usunąć punktu. Spróbuj ponownie.');
+    }
+};
 
 
 // --- LOGIKA DODAWANIA NOWEGO PUNKTU ---
@@ -308,14 +359,42 @@ watch(() => mapsStore.currentMap, (newMap) => {
 watch(() => pointsStore.points, (newPoints) => {
     if (!pointMarkersLayer.value || !mapInstance.value) return;
 
-    // DODAJ TĘ LINIĘ:
-    mapInstance.value.closePopup(); // Zamyka jakikolwiek otwarty dymek przed przerysowaniem
-
+    // Zamknij otwarte dymki i wyczyść warstwę
+    mapInstance.value.closePopup();
     pointMarkersLayer.value.clearLayers();
+
     newPoints.forEach(point => {
-        L.marker([point.location.lat, point.location.lng])
+        // Tworzymy unikalne ID dla elementu wewnątrz dymka, aby go później znaleźć
+        const popupContentId = `popup-content-${point._id}`;
+
+        // Tworzymy prosty HTML z tym unikalnym ID
+        const popupHtml = `
+            <div id="${popupContentId}" class="custom-popup-content cursor-pointer">
+                <b class="text-base text-slate-800">${point.name}</b>
+                <p class="text-xs text-slate-500 mt-1">Kliknij, aby zobaczyć szczegóły</p>
+            </div>
+        `;
+
+        const marker = L.marker([point.location.lat, point.location.lng])
             .addTo(pointMarkersLayer.value!)
-            .bindPopup(`<b>${point.name}</b>`);
+            .bindPopup(popupHtml);
+
+        // Dodajemy listener na zdarzenie otwarcia dymka przez Leaflet
+        marker.on('popupopen', () => {
+            // Czekamy na następny cykl renderowania, aby mieć pewność, że dymek jest w DOM
+            nextTick(() => {
+                const popupElement = document.getElementById(popupContentId);
+
+                // Sprawdzamy, czy element istnieje i czy nie ma już podpiętego listenera
+                if (popupElement && !popupElement.dataset.listenerAttached) {
+                    popupElement.addEventListener('click', () => {
+                        openDetailsDialog(point);
+                    });
+                    // Oznaczamy, że listener został już dodany, aby uniknąć duplikatów
+                    popupElement.dataset.listenerAttached = 'true';
+                }
+            });
+        });
     });
 }, { deep: true });
 

@@ -1,46 +1,101 @@
 import { defineStore } from 'pinia'
-import { pointService, type Point, type NewPointData } from '@/services/pointService'
+import { ref, computed } from 'vue'
+import {
+  pointService,
+  type Point,
+  type NewPointData,
+  type UpdatePointData,
+} from '@/services/pointService'
 
-interface PointsState {
-  points: Point[]
-  isLoading: boolean
-}
+export const usePointsStore = defineStore('points', () => {
+  // --- STATE ---
+  const points = ref<Point[]>([])
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
 
-export const usePointsStore = defineStore('points', {
-  state: (): PointsState => ({
-    points: [],
-    isLoading: false,
-  }),
-  actions: {
-    // Akcja do pobierania punktów dla mapy
-    async fetchPointsForMap(mapId: string) {
-      this.isLoading = true
-      try {
-        this.points = await pointService.getPointsByMapId(mapId)
-      } catch (error) {
-        console.error('Błąd podczas pobierania punktów:', error)
-        this.points = [] // Wyczyść punkty w razie błędu
-      } finally {
-        this.isLoading = false
+  // --- GETTERS ---
+  const pointsOnMap = computed(() => points.value)
+
+  // --- ACTIONS ---
+
+  /**
+   * Pobiera punkty dla określonej mapy.
+   */
+  async function fetchPointsForMap(mapId: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      points.value = await pointService.getPointsByMapId(mapId)
+    } catch (err: any) {
+      error.value = err.message || 'Nie udało się pobrać punktów.'
+      points.value = [] // Wyczyść w razie błędu
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Dodaje nowy punkt.
+   */
+  async function addPoint(data: NewPointData) {
+    isLoading.value = true
+    error.value = null
+    try {
+      const newPoint = await pointService.createPoint(data)
+      points.value.push(newPoint)
+    } catch (err: any) {
+      error.value = err.message || 'Nie udało się dodać punktu.'
+      throw err // Rzuć błąd dalej, aby obsłużyć go w komponencie
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * NOWA AKCJA: Aktualizuje istniejący punkt.
+   */
+  async function updatePoint(id: string, data: UpdatePointData) {
+    isLoading.value = true
+    error.value = null
+    try {
+      const updatedPoint = await pointService.updatePoint(id, data)
+      const index = points.value.findIndex((p) => p._id === id)
+      if (index !== -1) {
+        points.value[index] = updatedPoint
       }
-    },
+    } catch (err: any) {
+      error.value = err.message || 'Nie udało się zaktualizować punktu.'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
 
-    // Akcja do tworzenia nowego punktu
-    async addPoint(data: NewPointData) {
-      try {
-        const newPoint = await pointService.createPoint(data)
+  /**
+   * NOWA AKCJA: Usuwa punkt.
+   */
+  async function deletePoint(id: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await pointService.deletePoint(id)
+      points.value = points.value.filter((p) => p._id !== id)
+    } catch (err: any) {
+      error.value = err.message || 'Nie udało się usunąć punktu.'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
 
-        // Zamiast .push(), tworzymy nową tablicę
-        // To zmienia referencję i gwarantuje reaktywność
-        this.points = [...this.points, newPoint]
-      } catch (error) {
-        console.error('Błąd podczas dodawania punktu:', error)
-        throw error
-      }
-    },
-    // Akcja do czyszczenia punktów (np. przy zmianie mapy)
-    clearPoints() {
-      this.points = []
-    },
-  },
+  return {
+    points,
+    isLoading,
+    error,
+    pointsOnMap,
+    fetchPointsForMap,
+    addPoint,
+    updatePoint, // Udostępnij nową akcję
+    deletePoint, // Udostępnij nową akcję
+  }
 })
