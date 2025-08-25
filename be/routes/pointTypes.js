@@ -30,7 +30,8 @@ router.get('/:id', protect, async (req, res) => {
 router.post('/', [protect, authorize('admin')], async (req, res) => {
   const pointType = new PointType({
     name: req.body.name,
-    icon: req.body.icon
+    icon: req.body.icon,
+    color: req.body.color // Dodajemy obsługę koloru
   });
 
   try {

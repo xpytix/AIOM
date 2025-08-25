@@ -10,7 +10,7 @@
         <div id="map-container" class="absolute top-0 left-0 z-0 h-full w-full"></div>
 
         <!-- Nakładka wizualna na czas dodawania punktu -->
-        <div v-if="isAddingPoint" class="adding-point-overlay absolute ins`et-0 z-[1000] bg-slate-900/20"></div>
+        <div v-if="isAddingPoint" class="adding-point-overlay absolute inset-0 z-[1000] bg-slate-900/20"></div>
 
         <!-- Pływający przycisk akcji (FAB) -->
         <FloatingActionButton v-if="!isAddingPoint" class="absolute bottom-24 right-4 z-[1000]" @add="handleAddNew"
@@ -87,14 +87,14 @@
                     Anuluj
                 </button>
                 <button @click="submitAddPointTypeForm"
-                    class="rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">
+                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
                     Zapisz typ
                 </button>
             </template>
         </BaseDialog>
 
         <PointDetailsDialog :isOpen="isDetailsDialogOpen" :point="selectedPointForDetails" @close="closeDetailsDialog"
-            @save="handleSavePointDetails" @delete="handleDeletePoint" />
+            @save="handleSavePointDetails" @delete="handleDeletePoint" @point-updated="onPointUpdated" />
 
     </div>
 </template>
@@ -104,7 +104,7 @@
 import { useMapsStore, type Map } from '@/stores/maps';
 import { usePointsStore } from '@/stores/points';
 import { usePointTypesStore } from '@/stores/pointTypes';
-import type { NewPointData, Point } from '@/services/pointService';
+import { pointService, type NewPointData, type Point } from '@/services/pointService';
 import L from 'leaflet';
 import BaseDialog from '@/components/map/BaseDialog.vue';
 import FloatingActionButton from '@/components/map/FloatingActionButton.vue';
@@ -154,36 +154,44 @@ const selectMap = (map: Map) => {
 const isDetailsDialogOpen = ref(false);
 const selectedPointForDetails = ref<Point | null>(null);
 
-const openDetailsDialog = (point: Point) => {
-    selectedPointForDetails.value = point;
-    isDetailsDialogOpen.value = true;
+const openDetailsDialog = async (point: Point) => {
+    try {
+        // Pobierz pełne dane punktu, zanim otworzysz dialog
+        selectedPointForDetails.value = await pointService.getPointById(point._id);
+    } catch (error) {
+        console.error('Błąd podczas pobierania szczegółów punktu:', error);
+        alert('Nie udało się pobrać szczegółów punktu. Spróbuj ponownie.');
+        return;
+    }
+
+    isDetailsDialogOpen.value = true; // Otwórz dialog dopiero po pomyślnym pobraniu danych
 };
 const closeDetailsDialog = () => {
     isDetailsDialogOpen.value = false;
     selectedPointForDetails.value = null;
 };
 
-const handleSavePointDetails = async (data: Partial<Point>) => {
+const handleSavePointDetails = async (data: Partial<Point>, newPhotos: File[] = []) => {
     if (!selectedPointForDetails.value) return;
 
     try {
-        await pointsStore.updatePoint(selectedPointForDetails.value._id, data);
-        // Odśwież dane
-        if (mapsStore.currentMap) {
-            await pointsStore.fetchPointsForMap(mapsStore.currentMap._id);
-        }
+        const updatedPoint = await pointsStore.updatePoint(selectedPointForDetails.value._id, data, newPhotos);
         // Zaktualizuj też `selectedPointForDetails`, aby pokazać nowe dane bez zamykania okna
-        const updatedPoint = pointsStore.points.find(p => p._id === selectedPointForDetails.value!._id);
+        // Punkt zwrócony ze store jest już zaktualizowany i z-populate-owany przez backend.
         if (updatedPoint) {
             selectedPointForDetails.value = updatedPoint;
         } else {
-            closeDetailsDialog(); // Jeśli punkt zniknął, zamknij okno
+            closeDetailsDialog();
         }
-
     } catch (error) {
         console.error('Błąd aktualizacji punktu:', error);
         alert('Nie udało się zaktualizować punktu. Spróbuj ponownie.');
     }
+};
+
+const onPointUpdated = (updatedPoint: Point) => {
+    selectedPointForDetails.value = updatedPoint;
+    pointsStore.localUpdatePoint(updatedPoint);
 };
 
 const handleDeletePoint = async (id: string) => {
@@ -357,15 +365,50 @@ watch(() => mapsStore.currentMap, (newMap) => {
 
 // Obserwator zmian w punktach na mapie.
 watch(() => pointsStore.points, (newPoints) => {
-    if (!pointMarkersLayer.value || !mapInstance.value) return;
+    if (!pointMarkersLayer.value || !mapInstance.value) return
 
     // Zamknij otwarte dymki i wyczyść warstwę
-    mapInstance.value.closePopup();
-    pointMarkersLayer.value.clearLayers();
+    mapInstance.value.closePopup()
+    pointMarkersLayer.value.clearLayers()
 
-    newPoints.forEach(point => {
+    newPoints.forEach((point) => {
+        const pointType = point.pointType
+        let marker
+
+        // Sprawdź, czy mamy poprawny typ punktu z ikoną i kolorem, aby stworzyć niestandardowy marker
+        if (pointType && typeof pointType === 'object' && pointType.icon && pointType.color) {
+            // Konwertuj nazwę ikony z CamelCase (np. FireIcon) na kebab-case (np. fire)
+            const iconFileName = pointType.icon
+                .replace(/Icon$/, '')
+                .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+                .toLowerCase()
+            const iconUrl = `/icons/${iconFileName}.svg`
+
+            // --- DEBUGOWANIE ---
+            console.log(`[Marker] Tworzenie ikony dla "${point.name}": ${iconUrl}`);
+
+            const iconHtml = `
+        <div class="custom-marker-pin" style="background-color: ${pointType.color};">
+            <div class="custom-marker-icon" style="--icon-url: url('${iconUrl}')"></div>
+        </div>
+      `
+
+            const customIcon = L.divIcon({
+                html: iconHtml,
+                className: '', // Usuwamy domyślne style Leaflet dla divIcon
+                iconSize: [32, 40],
+                iconAnchor: [16, 40], // Punkt "szpilki", który wskazuje na współrzędne
+                popupAnchor: [0, -42], // Pozycja dymka względem iconAnchor
+            })
+
+            marker = L.marker([point.location.lat, point.location.lng], { icon: customIcon })
+        } else {
+            // Jeśli brak danych, użyj domyślnego markera Leaflet
+            marker = L.marker([point.location.lat, point.location.lng])
+        }
+
         // Tworzymy unikalne ID dla elementu wewnątrz dymka, aby go później znaleźć
-        const popupContentId = `popup-content-${point._id}`;
+        const popupContentId = `popup-content-${point._id}`
 
         // Tworzymy prosty HTML z tym unikalnym ID
         const popupHtml = `
@@ -373,29 +416,27 @@ watch(() => pointsStore.points, (newPoints) => {
                 <b class="text-base text-slate-800">${point.name}</b>
                 <p class="text-xs text-slate-500 mt-1">Kliknij, aby zobaczyć szczegóły</p>
             </div>
-        `;
+        `
 
-        const marker = L.marker([point.location.lat, point.location.lng])
-            .addTo(pointMarkersLayer.value!)
-            .bindPopup(popupHtml);
+        marker.addTo(pointMarkersLayer.value!).bindPopup(popupHtml)
 
         // Dodajemy listener na zdarzenie otwarcia dymka przez Leaflet
         marker.on('popupopen', () => {
             // Czekamy na następny cykl renderowania, aby mieć pewność, że dymek jest w DOM
             nextTick(() => {
-                const popupElement = document.getElementById(popupContentId);
+                const popupElement = document.getElementById(popupContentId)
 
                 // Sprawdzamy, czy element istnieje i czy nie ma już podpiętego listenera
                 if (popupElement && !popupElement.dataset.listenerAttached) {
                     popupElement.addEventListener('click', () => {
-                        openDetailsDialog(point);
-                    });
+                        openDetailsDialog(point)
+                    })
                     // Oznaczamy, że listener został już dodany, aby uniknąć duplikatów
-                    popupElement.dataset.listenerAttached = 'true';
+                    popupElement.dataset.listenerAttached = 'true'
                 }
-            });
-        });
-    });
+            })
+        })
+    })
 }, { deep: true });
 
 /** NOWY OBSERWATOR: Reaguje na zmianę trybu dodawania punktu i zmienia kursor. */
@@ -415,6 +456,30 @@ watch(isAddingPoint, (isAdding) => {
 /* Dodajemy styl dla kursora, gdy jest aktywny tryb dodawania */
 .cursor-crosshair {
     cursor: crosshair;
+}
+
+/* Style dla niestandardowych markerów */
+.custom-marker-pin {
+    width: 32px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    /* Tworzy kształt "szpilki" */
+    clip-path: path('M16 40C16 40 4 24 4 16A12 12 0 1 1 28 16C28 24 16 40 16 40Z');
+}
+
+.custom-marker-icon {
+    width: 20px;
+    height: 20px;
+    background: white;
+    /* Użycie 'background' zamiast 'background-color' bywa bardziej niezawodne z maskowaniem */
+    /* Używamy skróconej właściwości 'mask' i zmiennej CSS dla lepszej kompatybilności */
+    mask: var(--icon-url) center / contain no-repeat;
+    -webkit-mask: var(--icon-url) center / contain no-repeat;
+    margin-bottom: 10px;
+    /* Dopasowanie pozycji ikony wewnątrz "szpilki" */
 }
 
 #map-container {

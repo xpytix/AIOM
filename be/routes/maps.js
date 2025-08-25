@@ -8,7 +8,9 @@ const { protect, authorize } = require('../middleware/authMiddleware'); // IMPOR
 // GET - Pobieranie wszystkich map (dla wszystkich zalogowanych)
 router.get('/', protect, async (req, res) => {
   try {
-    const maps = await Map.find().populate('points').populate('walks3D');
+    // Używamy .select(), aby całkowicie wykluczyć pola 'points' i 'walks3D' z wyników.
+    // Znak minusa (-) przed nazwą pola oznacza jego wykluczenie.
+    const maps = await Map.find().select('-points -walks3D');
     res.json(maps);
   } catch (err) {
     res.status(500).json({ message: err.message });

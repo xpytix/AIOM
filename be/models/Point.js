@@ -59,10 +59,16 @@ const pointSchema = new Schema(
     nextInspectionDate: {
       type: Date,
     },
+    photos: [
+      {
+        type: String,
+        required: false,
+      },
+    ],
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 module.exports = mongoose.model("Point", pointSchema);

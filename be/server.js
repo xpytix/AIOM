@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -16,6 +17,9 @@ db.once('open', () => {
   console.log('✅ Pomyślnie połączono z bazą danych MongoDB!');
 });
 // ------------------------------------
+
+// Serwowanie plików statycznych z katalogu 'uploads'
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- GŁÓWNA TRASA API ---
 app.get('/', (req, res) => {

@@ -54,15 +54,21 @@ export const usePointsStore = defineStore('points', () => {
   /**
    * NOWA AKCJA: Aktualizuje istniejący punkt.
    */
-  async function updatePoint(id: string, data: UpdatePointData) {
+  async function updatePoint(
+    id: string,
+    data: UpdatePointData,
+    newPhotos: File[] = [],
+  ): Promise<Point | undefined> {
     isLoading.value = true
     error.value = null
     try {
-      const updatedPoint = await pointService.updatePoint(id, data)
+      const updatedPoint = await pointService.updatePoint(id, data, newPhotos)
       const index = points.value.findIndex((p) => p._id === id)
       if (index !== -1) {
         points.value[index] = updatedPoint
       }
+      // Zwróć zaktualizowany punkt, aby komponent mógł go użyć
+      return updatedPoint
     } catch (err: any) {
       error.value = err.message || 'Nie udało się zaktualizować punktu.'
       throw err
@@ -88,6 +94,16 @@ export const usePointsStore = defineStore('points', () => {
     }
   }
 
+  /**
+   * Aktualizuje punkt w lokalnym stanie bez wywołania API.
+   * Używane po usunięciu zdjęcia, aby odświeżyć widok.
+   */
+  function localUpdatePoint(point: Point) {
+    const index = points.value.findIndex((p) => p._id === point._id)
+    if (index !== -1) {
+      points.value[index] = point
+    }
+  }
   return {
     points,
     isLoading,
@@ -97,5 +113,6 @@ export const usePointsStore = defineStore('points', () => {
     addPoint,
     updatePoint, // Udostępnij nową akcję
     deletePoint, // Udostępnij nową akcję
+    localUpdatePoint,
   }
 })
