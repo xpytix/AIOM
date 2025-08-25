@@ -67,14 +67,17 @@
                 :map-id="mapsStore.currentMap!._id" @save="handleSavePoint" />
 
             <template #footer>
-                <button @click="closeAddPointDialog"
-                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
-                    Anuluj
-                </button>
-                <button @click="submitAddPointForm"
-                    class="rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">
-                    Zapisz punkt
-                </button>
+                <div class="flex w-full justify-between gap-3">
+
+                    <button @click="closeAddPointDialog"
+                        class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
+                        Anuluj
+                    </button>
+                    <button @click="submitAddPointForm"
+                        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                        Zapisz Nowy Punkt
+                    </button>
+                </div>
             </template>
         </BaseDialog>
 
@@ -82,14 +85,17 @@
         <BaseDialog :is-open="isAddPointTypeDialogOpen" title="Dodaj nowy typ punktu" @close="closeAddPointTypeDialog">
             <AddPointTypeForm ref="addPointTypeFormRef" @save="handleSavePointType" />
             <template #footer>
-                <button @click="closeAddPointTypeDialog"
-                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
-                    Anuluj
-                </button>
-                <button @click="submitAddPointTypeForm"
-                    class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
-                    Zapisz typ
-                </button>
+                <div class="flex w-full justify-between gap-3">
+
+                    <button @click="closeAddPointTypeDialog"
+                        class="rounded-md bg-slate-200 px-4 py-2 text-slate-800 hover:bg-slate-300">
+                        Anuluj
+                    </button>
+                    <button @click="submitAddPointTypeForm"
+                        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                        Zapisz Nowy Typ
+                    </button>
+                </div>
             </template>
         </BaseDialog>
 
